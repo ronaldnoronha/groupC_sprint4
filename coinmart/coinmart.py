@@ -67,7 +67,7 @@ def show_watchlists():
 def get_user_watchlists(showwatchlist):
     db = get_db()
     auth_user = session.get("username")
-    cur = db.execute('select user_watchlists.username, user_watchlists.watchlist_name, watchlist_items.cryptocurrency, watchlist_items.currency, watchlist_items.current_value, historical_watchlist_data.old_value, historical_watchlist_data.old_time from user_watchlists, watchlist_items, historical_watchlist_data where user_watchlists.watchlist_name = watchlist_items.watchlist_name and user_watchlists.watchlist_name = historical_watchlist_data.watchlist_name and user_watchlists.username = ? and user_watchlists.watchlist_name=? and watchlist_items.cryptocurrency = historical_watchlist_data.cryptocurrency and  watchlist_items.currency = historical_watchlist_data.currency ',[auth_user,showwatchlist])
+    cur = db.execute('select user_watchlists.username, user_watchlists.watchlist_name, watchlist_items.cryptocurrency, watchlist_items.currency, watchlist_items.current_value, historical_watchlist_data.old_value, historical_watchlist_data.old_time from user_watchlists, watchlist_items, historical_watchlist_data where user_watchlists.watchlist_id = watchlist_items.watchlist_id and user_watchlists.watchlist_id = historical_watchlist_data.watchlist_id and user_watchlists.username = ? and user_watchlists.watchlist_name=? and watchlist_items.cryptocurrency = historical_watchlist_data.cryptocurrency and  watchlist_items.currency = historical_watchlist_data.currency ',[auth_user,showwatchlist])
     watchlists = cur.fetchall()
     return watchlists
 
@@ -155,17 +155,21 @@ def add_watchlistname(watchlist_name):
 def add_watchlist_pair_method(watchlistname,cryptocurrencyid,currency):
     auth_user = session.get("username")
     watchlistinfo = exchange_rate(cryptocurrencyid,currency)
+    cur = get_db().execute(
+        "select watchlist_id from user_watchlists where username = ? and watchlist_name=?",
+        [auth_user, watchlistname])
+    watchlist_id = cur.fetchone()
     if not session['logged_in']:
         abort(401)
     db=get_db()
-    db.execute("insert into watchlist_items(username,watchlist_name,cryptocurrency,currency,current_value,current_time) values (?,?,?,?,?,?)",
-               [auth_user,watchlistname, cryptocurrencyid, currency, watchlistinfo['price'], watchlistinfo['date_time']])
-    cursor = db.execute("select * from historical_watchlist_data, watchlist_items where historical_watchlist_data.old_time <> watchlist_items.current_time and historical_watchlist_data.watchlist_name = watchlist_items.watchlist_name and "
+    db.execute("insert into watchlist_items(watchlist_id,cryptocurrency,currency,current_value,current_time) values (?,?,?,?,?)",
+               [watchlist_id['watchlist_id'], cryptocurrencyid, currency, watchlistinfo['price'], watchlistinfo['date_time']])
+    cursor = db.execute("select * from historical_watchlist_data, watchlist_items where historical_watchlist_data.old_time <> watchlist_items.current_time and historical_watchlist_data.watchlist_id = watchlist_items.watchlist_id and "
                         "historical_watchlist_data.cryptocurrency = watchlist_items.cryptocurrency and historical_watchlist_data.currency = watchlist_items.currency")
     if len(cursor.fetchall())< 1 :
         db.execute(
-            "insert into historical_watchlist_data(username,watchlist_name,cryptocurrency,currency,old_value,old_time) values (?,?,?,?,?,?)",
-            [auth_user,watchlistname, cryptocurrencyid, currency, watchlistinfo['price'], watchlistinfo['date_time']])
+            "insert into historical_watchlist_data(watchlist_id,cryptocurrency,currency,old_value,old_time) values (?,?,?,?,?)",
+            [watchlist_id['watchlist_id'], cryptocurrencyid, currency, watchlistinfo['price'], watchlistinfo['date_time']])
     db.commit()
     flash('New pair added')
 
